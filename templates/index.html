@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plan de ascenso</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23163A5F'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23FFB703' stroke='%23FFFFFF' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Plan de ascenso</h1>
+      <p>Paradas de descompresión guardadas en una lista doblemente enlazada</p>
+    </div>
+    <dl class="gauges">
+      <div class="gauge"><dt>Tiempo de paradas</dt><dd><span id="stat-minutes">0</span><small>min</small></dd></div>
+      <div class="gauge"><dt>Paradas</dt><dd id="stat-size">0</dd></div>
+      <div class="gauge"><dt>head</dt><dd id="stat-head">None</dd></div>
+      <div class="gauge"><dt>tail</dt><dd id="stat-tail">None</dd></div>
+    </dl>
+    <button class="btn btn-ghost" id="btn-reset" type="button">Restaurar ejemplo</button>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <form class="block" id="form-insert">
+        <h2>Nueva parada</h2>
+        <div class="row">
+          <label>Profundidad (m)<input type="number" name="depth_m" min="3" max="60" value="18" required></label>
+          <label>Minutos<input type="number" name="minutes" min="1" max="120" value="2" required></label>
+        </div>
+        <label>Gas
+          <select name="gas">
+            <option>Aire</option>
+            <option>Nitrox 32</option>
+            <option selected>Nitrox 50</option>
+            <option>O2</option>
+          </select>
+        </label>
+        <fieldset class="segmented" id="insert-mode">
+          <legend>Dónde enlazarla</legend>
+          <label><input type="radio" name="mode" value="first">Al inicio</label>
+          <label><input type="radio" name="mode" value="last" checked>Al final</label>
+          <label><input type="radio" name="mode" value="index">En posición</label>
+          <label><input type="radio" name="mode" value="after">Después de</label>
+        </fieldset>
+        <label class="mode-field" data-mode="index" hidden>Posición (0 = head)<input type="number" name="index" min="0" value="1"></label>
+        <label class="mode-field" data-mode="after" hidden>Después de la parada<select name="after_id" class="stop-select"></select></label>
+        <button class="btn btn-primary" type="submit">Insertar parada</button>
+      </form>
+
+      <section class="block">
+        <h2>Quitar parada</h2>
+        <div class="row">
+          <button class="btn" type="button" id="btn-remove-first">Quitar la primera</button>
+          <button class="btn" type="button" id="btn-remove-last">Quitar la última</button>
+        </div>
+        <div class="row row-inline">
+          <select id="remove-id" class="stop-select" aria-label="Parada a quitar"></select>
+          <button class="btn btn-danger" type="button" id="btn-remove-id">Quitar</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Buscar y recorrer</h2>
+        <div class="row row-inline">
+          <input type="number" id="search-depth" min="1" max="60" value="9" aria-label="Profundidad a buscar">
+          <button class="btn" type="button" id="btn-search">Buscar profundidad</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" id="btn-walk-forward">Recorrer con next</button>
+          <button class="btn" type="button" id="btn-walk-backward">Recorrer con prev</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Reorganizar</h2>
+        <button class="btn btn-wide" type="button" id="btn-reverse">Invertir la lista</button>
+        <button class="btn btn-wide" type="button" id="btn-sort-desc">Ordenar de lo profundo a la superficie</button>
+        <button class="btn btn-wide" type="button" id="btn-sort-asc">Ordenar de la superficie a lo profundo</button>
+      </section>
+
+      <section class="block block-speed">
+        <label>Velocidad de animación
+          <input type="range" id="speed" min="0.4" max="2.5" step="0.1" value="1">
+        </label>
+      </section>
+    </aside>
+
+    <main class="stage">
+      <div class="stage-head">
+        <p class="message" id="message" role="status">Plan cargado.</p>
+        <p class="warning" id="ascent-warning" hidden>Ascenso inseguro: hay una parada igual o más profunda después de otra más somera.</p>
+      </div>
+      <div class="ocean" id="ocean">
+        <svg id="scene" role="img" aria-label="Perfil de ascenso con las paradas enlazadas"></svg>
+      </div>
+      <div class="legend">
+        <span class="key key-next">next</span>
+        <span class="key key-prev">prev</span>
+        <span class="key key-none">None: puntero vacío</span>
+        <span class="hint">Haz clic en una parada para seleccionarla</span>
+      </div>
+    </main>
+
+    <section class="log">
+      <div class="log-head">
+        <h2>Registro de punteros</h2>
+        <span id="log-count">0 pasos</span>
+      </div>
+      <ol id="log-list"></ol>
+    </section>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
